@@ -1,10 +1,10 @@
 import math
-
 from typing import List, Tuple
-from helpers import argsort, DType
-from ops import UnaryOps, BinaryOps, TernaryOps, ReduceOps
-from tensor import Function
+
+from helpers import DType, argsort
 from lazy import LazyBuffer
+from ops import BinaryOps, ReduceOps, TernaryOps, UnaryOps
+from tensor import Function
 
 
 class Contiguous(Function):
@@ -281,30 +281,90 @@ class Log(Function):
 
 
 class Exp(Function):
-    def forward(self, x: LazyBuffer):
+    """
+    Exponential function for tensors.
+
+    Computes the exponential function using base-2 exponentiation.
+    """
+
+    def forward(self, x: LazyBuffer) -> LazyBuffer:
+        """
+        Compute exponential of the input tensor.
+
+        Args:
+            x (LazyBuffer): Input tensor
+
+        Returns:
+            LazyBuffer: Exponential of input
+        """
         self.ret = x.e(BinaryOps.MUL, x.const(1 / math.log(2))).e(UnaryOps.EXP2)
         return self.ret
 
-    def backward(self, grad_output: LazyBuffer):
+    def backward(self, grad_output: LazyBuffer) -> LazyBuffer:
+        """
+        Compute gradient for exponential operation.
+
+        Args:
+            grad_output (LazyBuffer): Incoming gradient
+
+        Returns:
+            LazyBuffer: Gradient scaled by the output
+        """
         return self.ret.e(BinaryOps.MUL, grad_output)
 
 
 class Sqrt(Function):
-    def forward(self, x: LazyBuffer):
+    """
+    Square root function for tensors.
+
+    Computes the square root of a tensor.
+    """
+
+    def forward(self, x: LazyBuffer) -> LazyBuffer:
+        """
+        Compute square root of the input tensor.
+
+        Args:
+            x (LazyBuffer): Input tensor
+
+        Returns:
+            LazyBuffer: Square root of input
+        """
         self.ret = x.e(UnaryOps.SQRT)
         return self.ret
 
-    def backward(self, grad_output: LazyBuffer):
+    def backward(self, grad_output: LazyBuffer) -> LazyBuffer:
+        """
+        Compute gradient for square root operation.
+
+        Args:
+            grad_output (LazyBuffer): Incoming gradient
+
+        Returns:
+            LazyBuffer: Gradient divided by twice the square root
+        """
         return grad_output.e(
             BinaryOps.DIV, self.ret.e(BinaryOps.MUL, self.ret.const(2))
         )
 
 
-# NOTE: the implicit derivative of sigmoid is not stable
-# https://towardsdatascience.com/derivative-of-the-sigmoid-function-536880cf918e
-# TODO: have the backend automatically find this
 class Sigmoid(Function):
-    def forward(self, x: LazyBuffer):
+    """
+    Sigmoid activation function for tensors.
+
+    Computes the sigmoid function using base-2 exponentiation.
+    """
+
+    def forward(self, x: LazyBuffer) -> LazyBuffer:
+        """
+        Compute sigmoid activation of the input tensor.
+
+        Args:
+            x (LazyBuffer): Input tensor
+
+        Returns:
+            LazyBuffer: Sigmoid activation of input
+        """
         self.ret = x.const(1).e(
             BinaryOps.DIV,
             x.const(1).e(
@@ -314,75 +374,224 @@ class Sigmoid(Function):
         )
         return self.ret
 
-    def backward(self, grad_output: LazyBuffer):
+    def backward(self, grad_output: LazyBuffer) -> LazyBuffer:
+        """
+        Compute gradient for sigmoid activation.
+
+        Args:
+            grad_output (LazyBuffer): Incoming gradient
+
+        Returns:
+            LazyBuffer: Gradient of sigmoid activation
+        """
         return self.ret.e(
             BinaryOps.MUL, self.ret.const(1).e(BinaryOps.SUB, self.ret)
         ).e(BinaryOps.MUL, grad_output)
 
 
-# ************* binary ops *************
-
-
 class Less(Function):
-    def forward(self, x: LazyBuffer, y: LazyBuffer):
+    """
+    Less-than operation for tensors.
+
+    Compares elements of two tensors and returns a tensor of boolean values.
+    """
+
+    def forward(self, x: LazyBuffer, y: LazyBuffer) -> LazyBuffer:
+        """
+        Perform element-wise less-than comparison.
+
+        Args:
+            x (LazyBuffer): First tensor
+            y (LazyBuffer): Second tensor
+
+        Returns:
+            LazyBuffer: Tensor of boolean values indicating x < y
+        """
         return x.e(BinaryOps.CMPLT, y)
 
 
 class Add(Function):
-    def forward(self, x: LazyBuffer, y: LazyBuffer):
+    """
+    Addition operation for tensors.
+
+    Computes the element-wise sum of two tensors.
+    """
+
+    def forward(self, x: LazyBuffer, y: LazyBuffer) -> LazyBuffer:
+        """
+        Compute element-wise sum.
+
+        Args:
+            x (LazyBuffer): First tensor
+            y (LazyBuffer): Second tensor
+
+        Returns:
+            LazyBuffer: Sum of x and y
+        """
         return x.e(BinaryOps.ADD, y)
 
-    def backward(self, grad_output: LazyBuffer):
-        return grad_output if self.needs_input_grad[
-            0
-        ] else None, grad_output if self.needs_input_grad[1] else None
+    def backward(self, grad_output: LazyBuffer):  # pyright: ignore
+        """
+        Compute gradient for addition.
+
+        Args:
+            grad_output (LazyBuffer): Incoming gradient
+
+        Returns:
+            tuple: Gradients for x and y
+        """
+        return (
+            grad_output if self.needs_input_grad[0] else None,
+            grad_output if self.needs_input_grad[1] else None,
+        )
 
 
 class Sub(Function):
-    def forward(self, x: LazyBuffer, y: LazyBuffer):
+    """
+    Subtraction operation for tensors.
+
+    Computes the element-wise difference of two tensors.
+    """
+
+    def forward(self, x: LazyBuffer, y: LazyBuffer) -> LazyBuffer:
+        """
+        Compute element-wise difference.
+
+        Args:
+            x (LazyBuffer): First tensor
+            y (LazyBuffer): Second tensor
+
+        Returns:
+            LazyBuffer: Difference of x and y
+        """
         return x.e(BinaryOps.SUB, y)
 
-    def backward(self, grad_output: LazyBuffer):
-        return grad_output if self.needs_input_grad[0] else None, grad_output.e(
-            UnaryOps.NEG
-        ) if self.needs_input_grad[1] else None
+    def backward(self, grad_output: LazyBuffer):  # pyright: ignore
+        """
+        Compute gradient for subtraction.
+
+        Args:
+            grad_output (LazyBuffer): Incoming gradient
+
+        Returns:
+            tuple: Gradients for x and y
+        """
+        return (
+            grad_output if self.needs_input_grad[0] else None,
+            grad_output.e(UnaryOps.NEG) if self.needs_input_grad[1] else None,
+        )
 
 
 class Mul(Function):
-    def forward(self, x: LazyBuffer, y: LazyBuffer):
+    """
+    Multiplication operation for tensors.
+
+    Computes the element-wise product of two tensors.
+    """
+
+    def forward(self, x: LazyBuffer, y: LazyBuffer) -> LazyBuffer:
+        """
+        Compute element-wise product.
+
+        Args:
+            x (LazyBuffer): First tensor
+            y (LazyBuffer): Second tensor
+
+        Returns:
+            LazyBuffer: Product of x and y
+        """
         self.x, self.y = x, y
         return x.e(BinaryOps.MUL, y)
 
-    def backward(self, grad_output: LazyBuffer):
-        return self.y.e(BinaryOps.MUL, grad_output) if self.needs_input_grad[
-            0
-        ] else None, self.x.e(BinaryOps.MUL, grad_output) if self.needs_input_grad[
-            1
-        ] else None
+    def backward(self, grad_output: LazyBuffer):  # pyright: ignore
+        """
+        Compute gradient for multiplication.
+
+        Args:
+            grad_output (LazyBuffer): Incoming gradient
+
+        Returns:
+            tuple: Gradients for x and y
+        """
+        return (
+            self.y.e(BinaryOps.MUL, grad_output) if self.needs_input_grad[0] else None,
+            self.x.e(BinaryOps.MUL, grad_output) if self.needs_input_grad[1] else None,
+        )
 
 
 class Div(Function):
-    def forward(self, x: LazyBuffer, y: LazyBuffer):
+    """
+    Division operation for tensors.
+
+    Computes the element-wise division of two tensors.
+    """
+
+    def forward(self, x: LazyBuffer, y: LazyBuffer) -> LazyBuffer:
+        """
+        Compute element-wise division.
+
+        Args:
+            x (LazyBuffer): Numerator tensor
+            y (LazyBuffer): Denominator tensor
+
+        Returns:
+            LazyBuffer: Result of x / y
+        """
         self.x, self.y = x, y
         return x.e(BinaryOps.DIV, y)
 
-    def backward(self, grad_output: LazyBuffer):
-        return grad_output.e(BinaryOps.DIV, self.y) if self.needs_input_grad[
-            0
-        ] else None, grad_output.e(UnaryOps.NEG).e(BinaryOps.MUL, self.x).e(
-            BinaryOps.DIV, self.y.e(BinaryOps.MUL, self.y)
-        ) if self.needs_input_grad[1] else None
+    def backward(self, grad_output: LazyBuffer):  # pyright: ignore
+        """
+        Compute gradient for division.
 
+        Args:
+            grad_output (LazyBuffer): Incoming gradient
 
-# ************* ternary ops *************
+        Returns:
+            tuple: Gradients for x and y
+        """
+        return (
+            grad_output.e(BinaryOps.DIV, self.y) if self.needs_input_grad[0] else None,
+            grad_output.e(UnaryOps.NEG)
+            .e(BinaryOps.MUL, self.x)
+            .e(BinaryOps.DIV, self.y.e(BinaryOps.MUL, self.y))
+            if self.needs_input_grad[1]
+            else None,
+        )
 
 
 class Where(Function):
-    def forward(self, x: LazyBuffer, y: LazyBuffer, z: LazyBuffer):
+    """
+    Conditional selection operation for tensors.
+
+    Selects elements from two tensors based on a condition tensor.
+    """
+
+    def forward(self, x: LazyBuffer, y: LazyBuffer, z: LazyBuffer) -> LazyBuffer:
+        """
+        Compute element-wise conditional selection.
+
+        Args:
+            x (LazyBuffer): Condition tensor
+            y (LazyBuffer): Tensor for true condition
+            z (LazyBuffer): Tensor for false condition
+
+        Returns:
+            LazyBuffer: Selected elements based on condition
+        """
         self.x = x
         return x.e(TernaryOps.WHERE, y, z)
 
-    def backward(self, grad_output: LazyBuffer):
+    def backward(self, grad_output: LazyBuffer):  # pyright: ignore
+        """
+        Compute gradient for conditional selection.
+
+        Args:
+            grad_output (LazyBuffer): Incoming gradient
+
+        Returns:
+            tuple: Gradients for x, y, and z
+        """
         return (
             None,
             self.x.e(TernaryOps.WHERE, grad_output, grad_output.const(0))
@@ -394,38 +603,83 @@ class Where(Function):
         )
 
 
-# ************* reduce ops *************
-
-
 class Sum(Function):
-    def forward(self, x: LazyBuffer, new_shape):
+    """
+    Summation operation for tensors.
+
+    Reduces the input tensor by summing elements over specified dimensions.
+    """
+
+    def forward(self, x: LazyBuffer, new_shape: Tuple[int, ...]) -> LazyBuffer:
+        """
+        Compute the sum of elements in the input tensor, reducing to the new shape.
+
+        Args:
+            x (LazyBuffer): Input tensor
+            new_shape (tuple): Shape to reduce to
+
+        Returns:
+            LazyBuffer: Summed tensor with the new shape
+        """
         self.input_shape = x.shape
         return x.r(ReduceOps.SUM, new_shape)
 
-    def backward(self, grad_output: LazyBuffer):
+    def backward(self, grad_output: LazyBuffer) -> LazyBuffer:
+        """
+        Compute gradient for the summation operation.
+
+        Args:
+            grad_output (LazyBuffer): Incoming gradient
+
+        Returns:
+            LazyBuffer: Expanded gradient to match input shape
+        """
         return grad_output.expand(self.input_shape)
 
 
 class Max(Function):
-    def forward(self, x: LazyBuffer, new_shape):
-        self.x, self.ret = x, x.r(ReduceOps.MAX, new_shape)
+    """
+    Maximum reduction operation for tensors.
+
+    Reduces the input tensor by selecting the maximum elements over specified dimensions.
+    """
+
+    def forward(self, x: LazyBuffer, new_shape: Tuple[int, ...]) -> LazyBuffer:
+        """
+        Compute the maximum of elements in the input tensor, reducing to the new shape.
+
+        Args:
+            x (LazyBuffer): Input tensor
+            new_shape (tuple): Shape to reduce to
+
+        Returns:
+            LazyBuffer: Tensor of maximum values with the new shape
+        """
+        self.x = x
+        self.ret = x.r(ReduceOps.MAX, new_shape)
         return self.ret
 
-    def backward(self, grad_output: LazyBuffer):
-        # 1s in locations where the max was chosen (can be two locations)
+    def backward(self, grad_output: LazyBuffer) -> LazyBuffer:
+        """
+        Compute gradient for the maximum operation.
+
+        Args:
+            grad_output (LazyBuffer): Incoming gradient
+
+        Returns:
+            LazyBuffer: Gradient for the maximum operation
+        """
+        # Create a mask where 1s indicate the locations of the maximum values
         max_is_1s = self.x.const(1.0).e(
             BinaryOps.SUB, self.x.e(BinaryOps.CMPLT, self.ret.expand(self.x.shape))
         )
+        # Normalize the mask to ensure proper distribution of gradients
         div = max_is_1s.r(ReduceOps.SUM, grad_output.shape).expand(self.x.shape)
         return max_is_1s.e(BinaryOps.DIV, div).e(
             BinaryOps.MUL, grad_output.expand(self.x.shape)
         )
 
 
-# ************* movement ops *************
-
-
-# NOTE: this is sum in reverse
 class Expand(Function):
     """
     Tensor expansion operation.

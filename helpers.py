@@ -1,6 +1,7 @@
-import numpy as np
 from dataclasses import dataclass
-from typing import Union, Tuple, List, Any, Iterator
+from typing import Any, Iterator, List, Tuple, Union
+
+import numpy as np
 
 
 @dataclass(frozen=True, order=True)
